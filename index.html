@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MultiScore</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Prevent text selection and double-tap zoom for a native feel */
+        * {
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            touch-action: manipulation;
+        }
+        body {
+            overscroll-behavior: none;
+            background-color: #0f172a; /* Slate 900 */
+        }
+        .counter-card:active {
+            filter: brightness(1.1);
+            transform: scale(0.98);
+        }
+        .transition-all {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        /* Custom font size for massive single score */
+        .score-huge {
+            font-size: clamp(8rem, 40vh, 25rem);
+            line-height: 1;
+        }
+    </style>
+</head>
+<body class="text-slate-100 font-sans h-screen flex flex-col overflow-hidden">
+
+    <div id="app" class="flex flex-col h-full w-full">
+        <!-- Main Game View -->
+        <div id="game-view" class="flex-1 grid h-full">
+            <!-- Counters will be injected here -->
+        </div>
+
+        <!-- Floating Controls -->
+        <div class="fixed top-4 right-4 flex items-center gap-3 bg-slate-800/90 backdrop-blur-md p-2 rounded-2xl border border-slate-700 shadow-2xl z-50">
+            <button onclick="saveToCalendar()" class="p-2 hover:bg-slate-700 rounded-xl transition-colors text-slate-400 active:text-emerald-400" title="Save to Calendar">
+                <i data-lucide="calendar" class="w-5 h-5"></i>
+            </button>
+            <button onclick="resetScores()" class="p-2 hover:bg-slate-700 rounded-xl transition-colors text-slate-400 active:text-rose-400" title="Reset Scores">
+                <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
+            </button>
+            <div class="w-px h-6 bg-slate-700"></div>
+            <button onclick="openSettings()" class="flex items-center gap-2 px-2 py-1 hover:bg-slate-700 rounded-xl transition-colors font-medium text-blue-400">
+                <i data-lucide="settings" class="w-5 h-5"></i>
+                <span id="player-count-label" class="text-sm">4 Players</span>
+            </button>
+        </div>
+
+        <!-- Settings Modal -->
+        <div id="settings-modal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-sm z-[100] hidden flex flex-col p-6 overflow-y-auto">
+            <div class="max-w-md mx-auto w-full">
+                <div class="flex justify-between items-center mb-8">
+                    <h2 class="text-3xl font-bold">Settings</h2>
+                    <button onclick="closeSettings()" class="p-2 bg-slate-800 rounded-full">
+                        <i data-lucide="x" class="w-6 h-6"></i>
+                    </button>
+                </div>
+
+                <div class="space-y-6">
+                    <section>
+                        <label class="block text-sm font-medium text-slate-400 mb-3 uppercase tracking-wider">Number of Players</label>
+                        <div class="grid grid-cols-4 gap-2">
+                            <div id="player-buttons" class="contents"></div>
+                        </div>
+                    </section>
+
+                    <section id="name-inputs-section">
+                        <label class="block text-sm font-medium text-slate-400 mb-3 uppercase tracking-wider">Player Names</label>
+                        <div id="name-inputs" class="space-y-3"></div>
+                    </section>
+                    
+                    <button onclick="closeSettings()" class="w-full py-4 bg-blue-600 hover:bg-blue-500 rounded-2xl font-bold text-lg shadow-lg shadow-blue-900/20 transition-all mt-4">
+                        Done
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let state = {
+            players: 4,
+            scores: [0, 0, 0, 0, 0, 0, 0, 0],
+            names: ["Player 1", "Player 2", "Player 3", "Player 4", "Player 5", "Player 6", "Player 7", "Player 8"],
+            colors: [
+                'bg-rose-500', 'bg-blue-500', 'bg-emerald-500', 'bg-amber-500',
+                'bg-violet-500', 'bg-cyan-500', 'bg-orange-500', 'bg-fuchsia-500'
+            ]
+        };
+
+        const gameView = document.getElementById('game-view');
+        const settingsModal = document.getElementById('settings-modal');
+        const playerButtonsContainer = document.getElementById('player-buttons');
+        const nameInputsContainer = document.getElementById('name-inputs');
+        const playerCountLabel = document.getElementById('player-count-label');
+
+        function init() {
+            lucide.createIcons();
+            renderSettings();
+            renderGame();
+        }
+
+        function setPlayerCount(count) {
+            state.players = count;
+            renderSettings();
+            renderGame();
+        }
+
+        function updateName(index, name) {
+            state.names[index] = name || `P${index + 1}`;
+            renderGame();
+        }
+
+        function adjustScore(index, amount, event) {
+            if (event) event.stopPropagation();
+            state.scores[index] = Math.max(0, state.scores[index] + amount);
+            renderGame();
+        }
+
+        function resetScores() {
+            state.scores = state.scores.map(() => 0);
+            renderGame();
+        }
+
+        function openSettings() {
+            settingsModal.classList.remove('hidden');
+        }
+
+        function closeSettings() {
+            settingsModal.classList.add('hidden');
+        }
+
+        function saveToCalendar() {
+            // Build the title string
+            let results = [];
+            for (let i = 0; i < state.players; i++) {
+                results.push(`${state.names[i]}: ${state.scores[i]}`);
+            }
+            const summary = `Multiscore Results: ${results.join(' ')}`;
+
+            // Format dates for ICS (YYYYMMDDTHHMMSSZ)
+            const now = new Date();
+            const formatDate = (date) => {
+                return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+            };
+            
+            const start = formatDate(now);
+            const end = formatDate(new Date(now.getTime() + 30 * 60000)); // 30 mins duration
+
+            // Create ICS content
+            const icsContent = [
+                'BEGIN:VCALENDAR',
+                'VERSION:2.0',
+                'PRODID:-//MultiScore//NONSGML Event//EN',
+                'BEGIN:VEVENT',
+                `UID:${now.getTime()}@multiscore`,
+                `DTSTAMP:${start}`,
+                `DTSTART:${start}`,
+                `DTEND:${end}`,
+                `SUMMARY:${summary}`,
+                'DESCRIPTION:Score record from MultiScore web app.',
+                'END:VEVENT',
+                'END:VCALENDAR'
+            ].join('\r\n');
+
+            // Trigger download/open on iPhone
+            const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', 'multiscore-results.ics');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
+        }
+
+        function renderSettings() {
+            playerButtonsContainer.innerHTML = '';
+            for (let i = 1; i <= 8; i++) {
+                const btn = document.createElement('button');
+                btn.innerText = i;
+                btn.className = `py-3 rounded-xl font-bold transition-all ${state.players === i ? 'bg-blue-600 ring-2 ring-blue-400' : 'bg-slate-800 text-slate-400'}`;
+                btn.onclick = () => setPlayerCount(i);
+                playerButtonsContainer.appendChild(btn);
+            }
+
+            nameInputsContainer.innerHTML = '';
+            for (let i = 0; i < state.players; i++) {
+                const div = document.createElement('div');
+                div.className = "relative";
+                div.innerHTML = `
+                    <input 
+                        type="text" 
+                        value="${state.names[i]}" 
+                        placeholder="Player ${i + 1}"
+                        oninput="updateName(${i}, this.value)"
+                        class="w-full bg-slate-800 border-2 border-slate-700 rounded-xl px-4 py-3 focus:border-blue-500 outline-none transition-all pr-12"
+                    >
+                    <div class="absolute right-4 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full ${state.colors[i]}"></div>
+                `;
+                nameInputsContainer.appendChild(div);
+            }
+            playerCountLabel.innerText = `${state.players} ${state.players === 1 ? 'Player' : 'Players'}`;
+        }
+
+        function renderGame() {
+            gameView.innerHTML = '';
+            
+            let gridCols = 'grid-cols-1';
+            let gridRows = 'grid-rows-1';
+            let padding = 'p-1';
+            let gap = 'gap-1';
+
+            if (state.players === 1) {
+                padding = 'p-0';
+                gap = 'gap-0';
+            } else if (state.players === 2) { 
+                gridRows = 'grid-rows-2'; 
+            } else if (state.players === 3) { 
+                gridRows = 'grid-rows-3'; 
+            } else if (state.players === 4) { 
+                gridCols = 'grid-cols-2'; 
+                gridRows = 'grid-rows-2'; 
+            } else if (state.players <= 6) { 
+                gridCols = 'grid-cols-2'; 
+                gridRows = 'grid-rows-3'; 
+            } else { 
+                gridCols = 'grid-cols-2'; 
+                gridRows = 'grid-rows-4'; 
+            }
+
+            gameView.className = `flex-1 grid ${gridCols} ${gridRows} ${gap} ${padding} h-full w-full`;
+
+            for (let i = 0; i < state.players; i++) {
+                const card = document.createElement('div');
+                const rounded = state.players === 1 ? 'rounded-none' : 'rounded-lg';
+                card.className = `${state.colors[i]} relative flex flex-col items-center justify-center ${rounded} shadow-inner overflow-hidden counter-card transition-all cursor-pointer`;
+                card.onclick = () => adjustScore(i, 1);
+                
+                let scoreSize = 'text-8xl';
+                if (state.players === 1) scoreSize = 'score-huge';
+                else if (state.players === 2) scoreSize = 'text-9xl';
+
+                const namePosition = state.players === 1 ? 'top-10 left-10' : 'top-3 left-4';
+                const minusPosition = state.players === 1 ? 'bottom-10 right-10 w-24 h-24' : 'bottom-4 right-4 w-14 h-14';
+                const minusIconSize = state.players === 1 ? 'w-10 h-10' : 'w-7 h-7';
+
+                card.innerHTML = `
+                    <div class="absolute ${namePosition} right-4 flex justify-between items-start pointer-events-none">
+                         <span class="${state.players === 1 ? 'text-xl' : 'text-xs'} font-black uppercase tracking-widest text-white/40 drop-shadow-sm">
+                            ${state.names[i]}
+                         </span>
+                    </div>
+                    
+                    <div class="${scoreSize} font-black text-white drop-shadow-2xl pointer-events-none">
+                        ${state.scores[i]}
+                    </div>
+
+                    <button 
+                        onclick="adjustScore(${i}, -1, event)"
+                        class="absolute ${minusPosition} flex items-center justify-center bg-black/15 hover:bg-black/30 rounded-full text-white transition-all active:scale-90 backdrop-blur-sm border border-white/10"
+                    >
+                        <i data-lucide="minus" class="${minusIconSize}"></i>
+                    </button>
+                `;
+                gameView.appendChild(card);
+            }
+            lucide.createIcons();
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
