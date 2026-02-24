@@ -105,19 +105,41 @@
             ]
         };
 
+        let wakeLock = null;
+
         const gameView = document.getElementById('game-view');
         const settingsModal = document.getElementById('settings-modal');
         const playerButtonsContainer = document.getElementById('player-buttons');
         const nameInputsContainer = document.getElementById('name-inputs');
         const playerCountLabel = document.getElementById('player-count-label');
 
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                }
+            } catch (err) {
+                console.error(`${err.name}, ${err.message}`);
+            }
+        }
+
         function init() {
             lucide.createIcons();
             renderSettings();
             renderGame();
             
+            // Request wake lock initially
+            requestWakeLock();
+
             // Re-render when window is resized or orientation changes
             window.addEventListener('resize', renderGame);
+
+            // Re-request wake lock when page becomes visible again (iOS requirement)
+            document.addEventListener('visibilitychange', async () => {
+                if (wakeLock !== null && document.visibilityState === 'visible') {
+                    await requestWakeLock();
+                }
+            });
 
             // Prevent pinch-to-zoom on iOS
             document.addEventListener('gesturestart', function(e) {
