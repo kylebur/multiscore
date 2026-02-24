@@ -2,28 +2,36 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>MultiScore</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        /* Prevent text selection and double-tap zoom for a native feel */
+        /* Strict prevention of scrolling and zooming */
+        html, body {
+            overscroll-behavior: none;
+            overflow: hidden;
+            height: 100%;
+            width: 100%;
+            position: fixed; /* Prevents pull-to-refresh and rubber-banding */
+            background-color: #0f172a;
+        }
+
         * {
             -webkit-tap-highlight-color: transparent;
             user-select: none;
-            touch-action: manipulation;
+            touch-action: manipulation; /* Disables double-tap to zoom while allowing clicks */
         }
-        body {
-            overscroll-behavior: none;
-            background-color: #0f172a; /* Slate 900 */
-        }
+
         .counter-card:active {
             filter: brightness(1.1);
             transform: scale(0.98);
         }
+
         .transition-all {
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
+
         /* Custom font size for massive single score */
         .score-huge {
             font-size: clamp(8rem, 40vh, 25rem);
@@ -31,7 +39,7 @@
         }
     </style>
 </head>
-<body class="text-slate-100 font-sans h-screen flex flex-col overflow-hidden">
+<body class="text-slate-100 font-sans flex flex-col">
 
     <div id="app" class="flex flex-col h-full w-full">
         <!-- Main Game View -->
@@ -50,7 +58,7 @@
             <div class="w-px h-6 bg-slate-700"></div>
             <button onclick="openSettings()" class="flex items-center gap-2 px-2 py-1 hover:bg-slate-700 rounded-xl transition-colors font-medium text-blue-400">
                 <i data-lucide="settings" class="w-5 h-5"></i>
-                <span id="player-count-label" class="text-sm">4 Players</span>
+                <span id="player-count-label" class="text-sm">2 Players</span>
             </button>
         </div>
 
@@ -86,11 +94,11 @@
     </div>
 
     <script>
-        // State
+        // State - Now defaulting to 2 players with Kyle and Adrianne
         let state = {
-            players: 4,
+            players: 2,
             scores: [0, 0, 0, 0, 0, 0, 0, 0],
-            names: ["Player 1", "Player 2", "Player 3", "Player 4", "Player 5", "Player 6", "Player 7", "Player 8"],
+            names: ["Kyle", "Adrianne", "Player 3", "Player 4", "Player 5", "Player 6", "Player 7", "Player 8"],
             colors: [
                 'bg-rose-500', 'bg-blue-500', 'bg-emerald-500', 'bg-amber-500',
                 'bg-violet-500', 'bg-cyan-500', 'bg-orange-500', 'bg-fuchsia-500'
@@ -107,6 +115,21 @@
             lucide.createIcons();
             renderSettings();
             renderGame();
+            
+            // Re-render when window is resized or orientation changes
+            window.addEventListener('resize', renderGame);
+
+            // Prevent pinch-to-zoom on iOS
+            document.addEventListener('gesturestart', function(e) {
+                e.preventDefault();
+            });
+
+            // Prevent scrolling on touchmove for the body to stop pull-to-refresh
+            document.body.addEventListener('touchmove', function(e) {
+                if (settingsModal.classList.contains('hidden')) {
+                    e.preventDefault();
+                }
+            }, { passive: false });
         }
 
         function setPlayerCount(count) {
@@ -140,23 +163,20 @@
         }
 
         function saveToCalendar() {
-            // Build the title string
             let results = [];
             for (let i = 0; i < state.players; i++) {
                 results.push(`${state.names[i]}: ${state.scores[i]}`);
             }
             const summary = `Multiscore Results: ${results.join(' ')}`;
 
-            // Format dates for ICS (YYYYMMDDTHHMMSSZ)
             const now = new Date();
             const formatDate = (date) => {
                 return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
             };
             
             const start = formatDate(now);
-            const end = formatDate(new Date(now.getTime() + 30 * 60000)); // 30 mins duration
+            const end = formatDate(new Date(now.getTime() + 30 * 60000));
 
-            // Create ICS content
             const icsContent = [
                 'BEGIN:VCALENDAR',
                 'VERSION:2.0',
@@ -172,7 +192,6 @@
                 'END:VCALENDAR'
             ].join('\r\n');
 
-            // Trigger download/open on iPhone
             const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
             const url = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
@@ -203,6 +222,7 @@
                         type="text" 
                         value="${state.names[i]}" 
                         placeholder="Player ${i + 1}"
+                        onfocus="this.select()"
                         oninput="updateName(${i}, this.value)"
                         class="w-full bg-slate-800 border-2 border-slate-700 rounded-xl px-4 py-3 focus:border-blue-500 outline-none transition-all pr-12"
                     >
@@ -221,11 +241,19 @@
             let padding = 'p-1';
             let gap = 'gap-1';
 
+            const isLandscape = window.innerWidth > window.innerHeight;
+
             if (state.players === 1) {
                 padding = 'p-0';
                 gap = 'gap-0';
             } else if (state.players === 2) { 
-                gridRows = 'grid-rows-2'; 
+                if (isLandscape) {
+                    gridCols = 'grid-cols-2';
+                    gridRows = 'grid-rows-1';
+                } else {
+                    gridCols = 'grid-cols-1';
+                    gridRows = 'grid-rows-2';
+                }
             } else if (state.players === 3) { 
                 gridRows = 'grid-rows-3'; 
             } else if (state.players === 4) { 
@@ -249,7 +277,7 @@
                 
                 let scoreSize = 'text-8xl';
                 if (state.players === 1) scoreSize = 'score-huge';
-                else if (state.players === 2) scoreSize = 'text-9xl';
+                else if (state.players === 2) scoreSize = isLandscape ? 'text-8xl' : 'text-9xl';
 
                 const namePosition = state.players === 1 ? 'top-10 left-10' : 'top-3 left-4';
                 const minusPosition = state.players === 1 ? 'bottom-10 right-10 w-24 h-24' : 'bottom-4 right-4 w-14 h-14';
