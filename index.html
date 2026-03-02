@@ -69,7 +69,7 @@
 
         <!-- Revision Number -->
         <div class="fixed bottom-1 right-2 text-[10px] font-mono text-white/10 pointer-events-none z-[110]">
-            v1.2
+            v1.3
         </div>
 
         <!-- Settings Modal -->
@@ -313,7 +313,7 @@
                     const card = document.createElement('div');
                     const rounded = state.players === 1 ? 'rounded-none' : 'rounded-lg';
                     card.className = `${state.colors[i]} relative flex flex-col items-center justify-center ${rounded} shadow-inner overflow-hidden counter-card transition-all cursor-pointer`;
-                    card.onclick = () => adjustScore(i, 1);
+                    card.onpointerdown = (e) => adjustScore(i, 1, e);
                     
                     let scoreSize = 'text-8xl';
                     if (state.players === 1) scoreSize = 'score-huge';
@@ -335,7 +335,7 @@
                         </div>
 
                         <button 
-                            onclick="adjustScore(${i}, -1, event)"
+                            onpointerdown="adjustScore(${i}, -1, event)"
                             class="absolute ${minusPosition} flex items-center justify-center bg-black/15 hover:bg-black/30 rounded-full text-white transition-all active:scale-90 backdrop-blur-sm border border-white/10"
                         >
                             <i data-lucide="minus" class="${minusIconSize}"></i>
