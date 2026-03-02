@@ -19,8 +19,13 @@
 
         * {
             -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
             user-select: none;
             touch-action: manipulation; /* Disables double-tap to zoom while allowing clicks */
+        }
+
+        .counter-card {
+            touch-action: none;
         }
 
         .counter-card:active {
@@ -255,77 +260,94 @@
             playerCountLabel.innerText = `${state.players} ${state.players === 1 ? 'Player' : 'Players'}`;
         }
 
+        let lastOrientation = window.innerWidth > window.innerHeight;
+
         function renderGame() {
-            gameView.innerHTML = '';
-            
-            let gridCols = 'grid-cols-1';
-            let gridRows = 'grid-rows-1';
-            let padding = 'p-1';
-            let gap = 'gap-1';
-
+            // Check if we need to rebuild the entire grid
+            const currentCardsCount = gameView.children.length;
             const isLandscape = window.innerWidth > window.innerHeight;
-
-            if (state.players === 1) {
-                padding = 'p-0';
-                gap = 'gap-0';
-            } else if (state.players === 2) { 
-                if (isLandscape) {
-                    gridCols = 'grid-cols-2';
-                    gridRows = 'grid-rows-1';
-                } else {
-                    gridCols = 'grid-cols-1';
-                    gridRows = 'grid-rows-2';
-                }
-            } else if (state.players === 3) { 
-                gridRows = 'grid-rows-3'; 
-            } else if (state.players === 4) { 
-                gridCols = 'grid-cols-2'; 
-                gridRows = 'grid-rows-2'; 
-            } else if (state.players <= 6) { 
-                gridCols = 'grid-cols-2'; 
-                gridRows = 'grid-rows-3'; 
-            } else { 
-                gridCols = 'grid-cols-2'; 
-                gridRows = 'grid-rows-4'; 
-            }
-
-            gameView.className = `flex-1 grid ${gridCols} ${gridRows} ${gap} ${padding} h-full w-full`;
-
-            for (let i = 0; i < state.players; i++) {
-                const card = document.createElement('div');
-                const rounded = state.players === 1 ? 'rounded-none' : 'rounded-lg';
-                card.className = `${state.colors[i]} relative flex flex-col items-center justify-center ${rounded} shadow-inner overflow-hidden counter-card transition-all cursor-pointer`;
-                card.onclick = () => adjustScore(i, 1);
+            const orientationChanged = isLandscape !== lastOrientation;
+            lastOrientation = isLandscape;
+            
+            // Rebuild if player count changed, orientation changed, or first render
+            if (currentCardsCount !== state.players || orientationChanged) {
+                gameView.innerHTML = '';
                 
-                let scoreSize = 'text-8xl';
-                if (state.players === 1) scoreSize = 'score-huge';
-                else if (state.players === 2) scoreSize = isLandscape ? 'text-8xl' : 'text-9xl';
+                let gridCols = 'grid-cols-1';
+                let gridRows = 'grid-rows-1';
+                let padding = 'p-1';
+                let gap = 'gap-1';
 
-                const namePosition = state.players === 1 ? 'top-10 left-10' : 'top-3 left-4';
-                const minusPosition = state.players === 1 ? 'bottom-10 right-10 w-24 h-24' : 'bottom-4 right-4 w-14 h-14';
-                const minusIconSize = state.players === 1 ? 'w-10 h-10' : 'w-7 h-7';
+                if (state.players === 1) {
+                    padding = 'p-0';
+                    gap = 'gap-0';
+                } else if (state.players === 2) { 
+                    if (isLandscape) {
+                        gridCols = 'grid-cols-2';
+                        gridRows = 'grid-rows-1';
+                    } else {
+                        gridCols = 'grid-cols-1';
+                        gridRows = 'grid-rows-2';
+                    }
+                } else if (state.players === 3) { 
+                    gridRows = 'grid-rows-3'; 
+                } else if (state.players === 4) { 
+                    gridCols = 'grid-cols-2'; 
+                    gridRows = 'grid-rows-2'; 
+                } else if (state.players <= 6) { 
+                    gridCols = 'grid-cols-2'; 
+                    gridRows = 'grid-rows-3'; 
+                } else { 
+                    gridCols = 'grid-cols-2'; 
+                    gridRows = 'grid-rows-4'; 
+                }
 
-                card.innerHTML = `
-                    <div class="absolute ${namePosition} right-4 flex justify-between items-start pointer-events-none">
-                         <span class="${state.players === 1 ? 'text-xl' : 'text-xs'} font-black uppercase tracking-widest text-white/40 drop-shadow-sm">
-                            ${state.names[i]}
-                         </span>
-                    </div>
+                gameView.className = `flex-1 grid ${gridCols} ${gridRows} ${gap} ${padding} h-full w-full`;
+
+                for (let i = 0; i < state.players; i++) {
+                    const card = document.createElement('div');
+                    const rounded = state.players === 1 ? 'rounded-none' : 'rounded-lg';
+                    card.className = `${state.colors[i]} relative flex flex-col items-center justify-center ${rounded} shadow-inner overflow-hidden counter-card transition-all cursor-pointer`;
+                    card.onclick = () => adjustScore(i, 1);
                     
-                    <div class="${scoreSize} font-black text-white drop-shadow-2xl pointer-events-none">
-                        ${state.scores[i]}
-                    </div>
+                    let scoreSize = 'text-8xl';
+                    if (state.players === 1) scoreSize = 'score-huge';
+                    else if (state.players === 2) scoreSize = isLandscape ? 'text-8xl' : 'text-9xl';
 
-                    <button 
-                        onclick="adjustScore(${i}, -1, event)"
-                        class="absolute ${minusPosition} flex items-center justify-center bg-black/15 hover:bg-black/30 rounded-full text-white transition-all active:scale-90 backdrop-blur-sm border border-white/10"
-                    >
-                        <i data-lucide="minus" class="${minusIconSize}"></i>
-                    </button>
-                `;
-                gameView.appendChild(card);
+                    const namePosition = state.players === 1 ? 'top-10 left-10' : 'top-3 left-4';
+                    const minusPosition = state.players === 1 ? 'bottom-10 right-10 w-24 h-24' : 'bottom-4 right-4 w-14 h-14';
+                    const minusIconSize = state.players === 1 ? 'w-10 h-10' : 'w-7 h-7';
+
+                    card.innerHTML = `
+                        <div class="absolute ${namePosition} right-4 flex justify-between items-start pointer-events-none">
+                             <span id="player-name-${i}" class="${state.players === 1 ? 'text-xl' : 'text-xs'} font-black uppercase tracking-widest text-white/40 drop-shadow-sm">
+                                ${state.names[i]}
+                             </span>
+                        </div>
+                        
+                        <div id="player-score-${i}" class="${scoreSize} font-black text-white drop-shadow-2xl pointer-events-none">
+                            ${state.scores[i]}
+                        </div>
+
+                        <button 
+                            onclick="adjustScore(${i}, -1, event)"
+                            class="absolute ${minusPosition} flex items-center justify-center bg-black/15 hover:bg-black/30 rounded-full text-white transition-all active:scale-90 backdrop-blur-sm border border-white/10"
+                        >
+                            <i data-lucide="minus" class="${minusIconSize}"></i>
+                        </button>
+                    `;
+                    gameView.appendChild(card);
+                }
+                lucide.createIcons();
+            } else {
+                // Update existing scores and names
+                for (let i = 0; i < state.players; i++) {
+                    const scoreEl = document.getElementById(`player-score-${i}`);
+                    const nameEl = document.getElementById(`player-name-${i}`);
+                    if (scoreEl) scoreEl.innerText = state.scores[i];
+                    if (nameEl) nameEl.innerText = state.names[i];
+                }
             }
-            lucide.createIcons();
         }
 
         window.onload = init;
